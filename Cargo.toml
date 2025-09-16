@@ -1,0 +1,29 @@
+[package]
+name = "voicehanler-rs"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+axum = { version = "0.7", features = ["ws"] }
+axum-server = { version = "0.7.2" }
+tokio = { version = "1.40", features = ["full"] }
+futures = "0.3"
+clap = { version = "4.5.32", features = ["derive", "env"] }
+dotenv = "0.15.0"
+tower-http = { version = "0.6.2", features = ["cors", "trace"] }
+tracing = "0.1.41"
+tracing-subscriber = { version = "0.3.19", features = ["env-filter", "json"] }
+
+# JSON
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Encodage audio ulaw envoyé en base64
+base64 = "0.22"
+reqwest = { version = "0.12.23", features = ["multipart"] }
+hound = "3.5"
+elevenlabs_stt = "0.0.5"
+uuid = { version = "1.16.0", features = ["serde", "v7"] }
+chrono = "0.4.42"
+anywho = "0.1.2"
+rig = "0.1.0"

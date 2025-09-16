@@ -1,0 +1,35 @@
+use anywho::Error;
+use serde::Deserialize;
+use serde_json::from_str;
+
+use crate::domain::{
+    entities::audio_source_layer::AudioSourceLayer, ports::audio_source::AudioSource,
+};
+
+#[derive(Debug, Clone)]
+pub struct LocalAdapter;
+
+impl LocalAdapter {
+    pub fn new() -> Self {
+        Self {}
+    }
+}
+
+impl AudioSource for LocalAdapter {
+    async fn handle(&self, layer: &mut AudioSourceLayer<'_>) -> Result<(), Error> {
+        if let Ok(body) = from_str::<WebsocketData>(&layer.audio_buffer.streamed_content) {
+            if body.event == "media" {
+                let pcm = body.content.clone();
+                layer.process(&pcm).await;
+            }
+        }
+
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct WebsocketData {
+    pub event: String,
+    pub content: Vec<i16>,
+}
