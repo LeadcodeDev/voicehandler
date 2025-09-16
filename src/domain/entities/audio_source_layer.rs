@@ -5,7 +5,7 @@ use uuid::Uuid;
 use crate::{
     application::{stt::SttList, vad::VadList},
     domain::{
-        entities::{audio_buffer::AudioBuffer, pool::Pool},
+        entities::{audio_buffer::AudioBuffer, pipeline::pool_manager::PoolManager},
         ports::vad::{Vad, VadEvent},
         utils::Convert,
     },
@@ -15,7 +15,7 @@ pub struct AudioSourceLayer<'a> {
     pub id: Uuid,
     pub vad: &'a mut VadList,
     pub stt: SttList,
-    pub pool_manager: Pool,
+    pub pool_manager: PoolManager,
     pub audio_buffer: &'a mut AudioBuffer,
 }
 
@@ -39,13 +39,17 @@ impl AudioSourceLayer<'_> {
                             Duration::milliseconds(100),
                             Duration::milliseconds(100),
                         ));
+
+                    self.pool_manager
+                        .start_pipeline(self.id, self.stt.clone(), self.audio_buffer.user.clone())
+                        .await;
                 }
                 VadEvent::EndOfTurn => {
                     debug!("Full stop");
-                    self.pool_manager.compute(self.id, self.vad.take_bytes());
+                    // self.pool_manager.compute(self.id, self.vad.take_bytes());
 
-                    let pool = self.pool_manager.create_pool(self.stt.clone());
-                    self.pool_manager.send(pool, self.id).await;
+                    // let pool = self.pool_manager.create_pool(self.stt.clone());
+                    // self.pool_manager.send(pool, self.id).await;
                 }
                 VadEvent::CalibrationDone(th) => {
                     debug!("Calibration terminée id={} (seuil={:.2})", self.id, th);

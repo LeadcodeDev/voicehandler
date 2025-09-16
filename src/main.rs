@@ -19,7 +19,7 @@ use voicehanler_rs::{
         },
         stt::SttList,
     },
-    domain::entities::pool::Pool,
+    domain::entities::pipeline::pool_manager::PoolManager,
     infrastructure::{
         audio_source::{local_source_adapter::LocalAdapter, twilio_source_adapter::TwilioAdapter},
         stt::scribe_adapter::ScribeAdapter,
@@ -53,7 +53,7 @@ async fn main() {
         AudioSourceList::Local(LocalAdapter::new()),
     ];
 
-    let pool_manager = Pool::new();
+    let pool_manager = PoolManager::new(10);
     let state = Arc::new(AppState::new(
         pool_manager,
         SttList::Scribe(ScribeAdapter::new(
