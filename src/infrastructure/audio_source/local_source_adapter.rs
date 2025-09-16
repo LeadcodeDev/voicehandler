@@ -17,7 +17,7 @@ impl LocalAdapter {
 
 impl AudioSource for LocalAdapter {
     async fn handle(&self, layer: &mut AudioSourceLayer<'_>) -> Result<(), Error> {
-        if let Ok(body) = from_str::<WebsocketData>(&layer.audio_buffer.streamed_content) {
+        if let Ok(body) = from_str::<Message>(&layer.audio_buffer.streamed_content) {
             if body.event == "media" {
                 let pcm = body.content.clone();
                 layer.process(&pcm).await;
@@ -29,7 +29,7 @@ impl AudioSource for LocalAdapter {
 }
 
 #[derive(Debug, Clone, Deserialize)]
-pub struct WebsocketData {
+struct Message {
     pub event: String,
     pub content: Vec<i16>,
 }

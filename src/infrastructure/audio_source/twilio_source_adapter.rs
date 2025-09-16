@@ -19,7 +19,7 @@ impl TwilioAdapter {
 
 impl AudioSource for TwilioAdapter {
     async fn handle(&self, layer: &mut AudioSourceLayer<'_>) -> Result<(), Error> {
-        if let Ok(envelope) = from_str::<MediaEnvelope>(&layer.audio_buffer.streamed_content) {
+        if let Ok(envelope) = from_str::<Message>(&layer.audio_buffer.streamed_content) {
             if envelope.event == "media" {
                 if let Ok(raw_bytes) = general_purpose::STANDARD.decode(&envelope.media.payload) {
                     let int16_8k = Convert::decode_ulaw_bytes(&raw_bytes);
@@ -35,15 +35,15 @@ impl AudioSource for TwilioAdapter {
 }
 
 #[derive(Debug, Deserialize)]
-pub struct MediaEnvelope {
+struct Message {
     pub event: String,
 
     #[serde(rename = "sequenceNumber")]
-    pub sequence_number: String,
+    pub _sequence_number: String,
     pub media: Media,
 
     #[serde(rename = "streamSid")]
-    pub stream_sid: String,
+    pub _stream_sid: String,
 }
 
 #[derive(Debug, Deserialize)]

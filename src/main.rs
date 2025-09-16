@@ -26,7 +26,7 @@ use voicehanler_rs::{
     },
 };
 
-#[tokio::main]
+#[tokio::main(flavor = "multi_thread")]
 async fn main() {
     dotenv::dotenv().ok();
 
