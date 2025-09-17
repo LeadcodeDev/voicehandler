@@ -7,23 +7,24 @@ use std::{
 };
 
 use tokio::{
-    spawn,
+    select, spawn,
     sync::{Mutex, Semaphore},
 };
 use tokio_util::sync::CancellationToken;
-use tracing::debug;
+use tracing::{debug, error};
 use uuid::Uuid;
 
-use crate::{application::stt::SttList, domain::entities::pipeline::pipeline::Pipeline};
-
-struct PipelineEntry {
-    generation: u64,
-    token: CancellationToken,
-}
+use crate::{
+    application::stt::SttList,
+    domain::{
+        entities::{audio_source_layer::SendAudioCallback, pipeline::pipeline::Pipeline},
+        ports::stt::Stt,
+    },
+};
 
 #[derive(Clone)]
 pub struct PoolManager {
-    pipelines: Arc<Mutex<HashMap<Uuid, PipelineEntry>>>,
+    pipelines: Arc<Mutex<HashMap<Uuid, Pipeline>>>,
     semaphore: Arc<Semaphore>,
     gen_counter: Arc<AtomicU64>,
 }
@@ -37,27 +38,113 @@ impl PoolManager {
         }
     }
 
-    pub async fn start_pipeline(&self, id: Uuid, stt: SttList, bytes: Vec<i16>) {
+    pub async fn get_pipeline(&self, id: &Uuid) -> Option<Pipeline> {
+        let map = self.pipelines.lock().await;
+        if let Some(pipeline) = map.get(id) {
+            Some(pipeline.clone())
+        } else {
+            None
+        }
+    }
+
+    pub async fn start_pipeline(
+        &self,
+        id: Uuid,
+        stt: SttList,
+        bytes: Vec<i16>,
+        send_audio: SendAudioCallback,
+    ) {
         let generation = self.gen_counter.fetch_add(1, Ordering::SeqCst) + 1;
         let cancellation_token = CancellationToken::new();
 
         {
             let mut map = self.pipelines.lock().await;
             if let Some(prev) = map.remove(&id) {
-                prev.token.cancel();
+                prev.cancellation_token.cancel();
             }
         }
 
         let semaphore = Arc::clone(&self.semaphore);
         let pipelines_map = Arc::clone(&self.pipelines);
 
-        let pipeline = Pipeline::new(id, stt.clone(), cancellation_token.clone());
+        let pipeline = Pipeline::new(
+            id,
+            generation,
+            stt.clone(),
+            cancellation_token.clone(),
+            send_audio.clone(),
+        );
+        let pipeline_clone = pipeline.clone();
+
         spawn(async move {
             let permit = semaphore.acquire_owned().await.expect("Semaphore closed");
 
-            let _ = pipeline.execute_stt(&bytes).await;
-            let _ = pipeline.execute_llm().await;
-            let _ = pipeline.execute_tts().await;
+            let _stt_response = select! {
+                _ = cancellation_token.cancelled() => {
+                    debug!("Pipeline {} cancelled before STT", id);
+                    return ;
+                }
+
+                result = pipeline_clone.execute_stt(&bytes) => {
+                    match result {
+                        Ok(payload) => {
+                            debug!("Pipeline {} STT OK", id);
+                            Ok(payload)
+                        }
+                        Err(e) => {
+                            error!("Pipeline {} STT failed: {:?}", id, e);
+                            Err(e)
+                        }
+                    }
+                }
+            };
+
+            let _ = pipeline_clone
+                .stt
+                .write_audio_file(format!("{}.wav", id), &bytes)
+                .await;
+
+            let _llm_result = select! {
+                _ = cancellation_token.cancelled() => {
+                    debug!("Pipeline {} cancelled before LLM call", id);
+                    return;
+                }
+
+                llm_res = pipeline_clone.execute_llm() => {
+                    match llm_res {
+                        Ok(_) => {
+                            debug!("LLM success for pipeline ({})", id);
+                            Ok(())
+                        },
+                        Err(e) => {
+                            error!("LLM result for pipeline ({}) failed: {:?}", id, e);
+                            Err(e)
+                        }
+                    }
+                }
+            };
+
+            let _tts_result = select! {
+                _ = cancellation_token.cancelled() => {
+                    debug!("Pipeline {} cancelled before TTS call", id);
+                    return
+                }
+
+                llm_res = pipeline_clone.execute_tts() => {
+                    match llm_res {
+                        Ok(_) => {
+                            debug!("LLM success for pipeline ({})", id);
+                            Ok(())
+                        },
+                        Err(e) => {
+                            error!("LLM result for pipeline ({}) failed: {:?}", id, e);
+                            Err(e)
+                        }
+                    }
+                }
+            };
+
+            let _ = pipeline_clone.execute_send_audio(&Vec::new()).await;
 
             debug!(
                 "Pipeline {} gen={} finished; releasing permit",
@@ -75,34 +162,28 @@ impl PoolManager {
         });
 
         let mut map = self.pipelines.lock().await;
-        map.insert(
-            id,
-            PipelineEntry {
-                generation,
-                token: cancellation_token,
-            },
-        );
+        map.insert(id, pipeline.clone());
     }
 
     pub async fn stop_pipeline(&self, id: &Uuid) {
         let mut map = self.pipelines.lock().await;
-        if let Some(entry) = map.remove(id) {
-            entry.token.cancel();
+        if let Some(pipeline) = map.remove(id) {
+            pipeline.cancellation_token.cancel();
             debug!(
                 "stop_pipeline: cancelled pipeline {} gen={}",
-                id, entry.generation
+                id, pipeline.generation
             );
         }
     }
 
     pub async fn shutdown(&self) {
         let mut map = self.pipelines.lock().await;
-        let entries: Vec<(Uuid, PipelineEntry)> = map.drain().collect();
+        let entries: Vec<(Uuid, Pipeline)> = map.drain().collect();
 
         drop(map);
 
-        for (_id, entry) in entries {
-            entry.token.cancel();
+        for (_id, pipeline) in entries {
+            pipeline.cancellation_token.cancel();
         }
     }
 }

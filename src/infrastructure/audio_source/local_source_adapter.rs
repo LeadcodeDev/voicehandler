@@ -1,3 +1,5 @@
+use std::pin::Pin;
+
 use anywho::Error;
 use serde::Deserialize;
 use serde_json::from_str;
@@ -25,6 +27,17 @@ impl AudioSource for LocalAdapter {
         }
 
         Ok(())
+    }
+
+    fn send_audio(
+        &self,
+        bytes: &Vec<i16>,
+    ) -> Pin<Box<dyn Future<Output = Result<(), Error>> + Send>> {
+        let bytes = bytes.clone();
+        Box::pin(async move {
+            println!("Local send_audio with {} samples", bytes.len());
+            Ok(())
+        })
     }
 }
 

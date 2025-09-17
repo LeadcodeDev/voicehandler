@@ -1,5 +1,8 @@
 use crate::{
-    domain::ports::vad::{Vad, VadEvent},
+    domain::{
+        entities::audio_buffer::AudioBuffer,
+        ports::vad::{Vad, VadEvent},
+    },
     infrastructure::vad::local_vad::LocalVadAdapter,
 };
 
@@ -9,21 +12,15 @@ pub enum VadList {
 }
 
 impl Vad for VadList {
-    fn add_bytes(&mut self, bytes: &Vec<i16>) {
+    fn process_audio(&mut self, audio_buffer: &mut AudioBuffer) -> VadEvent {
         match self {
-            VadList::Local(adapter) => adapter.add_bytes(bytes),
+            VadList::Local(adapter) => adapter.process_audio(audio_buffer),
         }
     }
 
-    fn take_bytes(&mut self) -> Vec<i16> {
+    fn is_speech(&self, bytes: &[i16]) -> bool {
         match self {
-            VadList::Local(adapter) => adapter.take_bytes(),
-        }
-    }
-
-    fn process_frame(&mut self, bytes: &Vec<i16>) -> Option<VadEvent> {
-        match self {
-            VadList::Local(adapter) => adapter.process_frame(bytes),
+            VadList::Local(adapter) => adapter.is_speech(bytes),
         }
     }
 }

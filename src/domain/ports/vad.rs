@@ -1,3 +1,5 @@
+use crate::domain::entities::audio_buffer::AudioBuffer;
+
 #[derive(Debug, Clone)]
 pub enum VadState {
     Silence,
@@ -6,14 +8,14 @@ pub enum VadState {
 
 #[derive(Debug)]
 pub enum VadEvent {
-    Speaking,
-    Silence,
-    EndOfTurn,
-    CalibrationDone(f32),
+    SpeechStarted,
+    SpeechPaused(u64, u64),
+    SpeechResumed,
+    SpeechFullStop,
+    WaitingMoreChunks,
 }
 
 pub trait Vad: Clone + Send + Sync {
-    fn add_bytes(&mut self, bytes: &Vec<i16>);
-    fn take_bytes(&mut self) -> Vec<i16>;
-    fn process_frame(&mut self, audio: &Vec<i16>) -> Option<VadEvent>;
+    fn process_audio<'a>(&mut self, audio_buffer: &'a mut AudioBuffer) -> VadEvent;
+    fn is_speech(&self, bytes: &[i16]) -> bool;
 }

@@ -11,7 +11,8 @@ use crate::{
     application::{audio_source::AudioSourceList, http::app_state::AppState, vad::VadList},
     domain::{
         entities::{
-            audio_buffer::AudioBuffer, audio_source_layer::AudioSourceLayer,
+            audio_buffer::AudioBuffer,
+            audio_source_layer::{AudioSourceLayer, SendAudioCallback},
             history::history::History,
         },
         ports::audio_source::AudioSource,
@@ -45,10 +46,14 @@ async fn handle_twilio_socket(mut socket: WebSocket, state: Arc<AppState>) {
     let _history = History::new();
     let mut audio_source_layer = AudioSourceLayer {
         id: Utils::generate_uuid(),
-        vad: &mut VadList::Local(LocalVadAdapter::new(16000, 1365)),
+        vad: &mut VadList::Local(LocalVadAdapter::new(1024)),
         stt: stt.clone(),
         pool_manager: state.pool_manager.clone(),
         audio_buffer: &mut AudioBuffer::new(),
+        send_audio: SendAudioCallback::new({
+            let audio_source = audio_source.clone();
+            move |bytes| audio_source.send_audio(bytes)
+        }),
     };
 
     info!("Nouvelle connexion locale id={}", audio_source_layer.id);

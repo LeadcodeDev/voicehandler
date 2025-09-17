@@ -1,3 +1,5 @@
+use std::pin::Pin;
+
 use anywho::Error;
 
 use crate::{
@@ -18,6 +20,16 @@ impl AudioSource for AudioSourceList {
         match self {
             AudioSourceList::Twilio(adapter) => adapter.handle(buffers).await,
             AudioSourceList::Local(adapter) => adapter.handle(buffers).await,
+        }
+    }
+
+    fn send_audio(
+        &self,
+        bytes: &Vec<i16>,
+    ) -> Pin<Box<dyn Future<Output = Result<(), Error>> + Send>> {
+        match self {
+            AudioSourceList::Twilio(adapter) => adapter.send_audio(bytes),
+            AudioSourceList::Local(adapter) => adapter.send_audio(bytes),
         }
     }
 }
