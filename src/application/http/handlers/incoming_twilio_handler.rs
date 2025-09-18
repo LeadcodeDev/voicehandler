@@ -13,6 +13,7 @@ use crate::{
         entities::{
             audio_buffer::AudioBuffer,
             audio_source_layer::{AudioSourceLayer, SendAudioCallback},
+            history::history::History,
         },
         ports::audio_source::AudioSource,
         utils::Utils,
@@ -47,6 +48,7 @@ async fn handle_twilio_socket(mut socket: WebSocket, state: Arc<AppState>) {
         vad: &mut VadList::Local(LocalVadAdapter::new(1024)),
         stt: stt.clone(),
         pool_manager: state.pool_manager.clone(),
+        history: &mut History::new(),
         audio_buffer: &mut AudioBuffer::new(),
         send_audio: SendAudioCallback::new({
             let audio_source = audio_source.clone();

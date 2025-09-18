@@ -19,7 +19,7 @@ impl LocalVadAdapter {
             frame_size,
             // TODO: use voice-handler data
             threshold: 800.0,
-            full_stop_bytes: 64_000,
+            full_stop_bytes: 32_000,
             min_speech_bytes: 16_000,
         }
     }
@@ -36,18 +36,19 @@ impl Vad for LocalVadAdapter {
 
             match (is_speech, audio_buffer.start, audio_buffer.end) {
                 (true, None, None) => {
+                    // speech started for the first time this turn
                     let start = max(audio_buffer.cursor - 3 * self.frame_size, 0);
                     audio_buffer.start = Some(start);
 
                     return VadEvent::SpeechStarted;
                 }
-                (true, Some(_), None) => {}
+                (true, Some(_), None) => {} // speech is continuing no pause yet
                 (true, Some(_), Some(_)) => {
+                    // speech has paused but the user resume speacking
                     audio_buffer.end = None;
                     return VadEvent::SpeechResumed;
                 }
-
-                (false, None, None) => {}
+                (false, None, None) => {} // the user still did not talk this
                 (false, Some(start), None) => {
                     if audio_buffer.cursor - start >= self.min_speech_bytes {
                         let end = audio_buffer.cursor;
@@ -57,7 +58,6 @@ impl Vad for LocalVadAdapter {
                     }
                 }
                 (false, Some(_), Some(end)) => {
-                    println!("cursor={} end={}", audio_buffer.cursor, end);
                     if (audio_buffer.cursor - end) > self.full_stop_bytes {
                         audio_buffer.start = None;
                         audio_buffer.end = None;

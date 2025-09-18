@@ -10,6 +10,13 @@ pub struct HistoryEvent {
     pub is_saved: bool,
 }
 
+#[derive(Debug, Clone)]
+pub struct HistoryEventPayload {
+    pub member: HistoryMember,
+    pub content: Option<String>,
+    pub created_at: DateTime<Utc>,
+}
+
 impl HistoryEvent {
     pub fn new(payload: HistoryEventPayload) -> Self {
         let is_saved = match payload.member {
@@ -24,10 +31,4 @@ impl HistoryEvent {
             is_saved,
         }
     }
-}
-
-pub struct HistoryEventPayload {
-    pub member: HistoryMember,
-    pub content: Option<String>,
-    pub created_at: DateTime<Utc>,
 }

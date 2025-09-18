@@ -1,7 +1,8 @@
 use std::{pin::Pin, sync::Arc};
 
 use anywho::Error;
-use chrono::{DateTime, Utc};
+use chrono::Utc;
+use tracing::warn;
 use uuid::Uuid;
 
 use crate::{
@@ -9,6 +10,7 @@ use crate::{
     domain::{
         entities::{
             audio_buffer::AudioBuffer,
+            history::history::History,
             pipeline::{pipeline::PipelineStatus, pool_manager::PoolManager},
         },
         ports::{
@@ -23,6 +25,7 @@ pub struct AudioSourceLayer<'a> {
     pub vad: &'a mut VadList,
     pub stt: SttList,
     pub pool_manager: PoolManager,
+    pub history: &'a mut History,
     pub audio_buffer: &'a mut AudioBuffer,
     pub send_audio: SendAudioCallback,
 }
@@ -38,13 +41,14 @@ impl AudioSourceLayer<'_> {
             }
             VadEvent::SpeechPaused(start, end) => {
                 println!("Event {:?}", VadEvent::SpeechPaused(start, end));
-                let _ = self
-                    .stt
-                    .write_audio_file(
-                        format!("{}-{}.wav", self.id, Utc::now().to_string()),
-                        &self.audio_buffer.user[start as usize..end as usize].to_vec(),
-                    )
-                    .await;
+                // let _ = self
+                //     .stt
+                //     .write_audio_file(
+                //         format!("{}-{}.wav", self.id, Utc::now().to_string()),
+                //         &self.audio_buffer.user[start as usize..end as usize].to_vec(),
+                //     )
+                //     .await;
+
                 self.pool_manager
                     .start_pipeline(
                         self.id,
@@ -59,14 +63,21 @@ impl AudioSourceLayer<'_> {
                 self.pool_manager.stop_pipeline(&self.id).await;
             }
             VadEvent::SpeechFullStop => {
-                println!("Event {:?}", VadEvent::SpeechFullStop);
-                let pipeline = self.pool_manager.get_pipeline(&self.id).await;
+                warn!("Event {:?}", VadEvent::SpeechFullStop);
+                let map = self.pool_manager.pipelines.lock().await;
+                let pipeline = map.get(&self.id);
+
                 if let Some(pipeline) = pipeline {
-                    let _ = pipeline.set_status(PipelineStatus::CanSendAudio);
+                    let transcripted = pipeline.transcripted.lock().await;
+                    for entry in transcripted.iter() {
+                        self.history.add(entry.clone());
+                    }
+
+                    let _ = pipeline.status.set(PipelineStatus::CanSendAudio);
                 }
             }
             VadEvent::WaitingMoreChunks => {
-                println!("Event {:?}", VadEvent::WaitingMoreChunks);
+                //println!("Event {:?}", VadEvent::WaitingMoreChunks);
             }
         }
     }

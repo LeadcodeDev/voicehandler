@@ -49,12 +49,17 @@ async fn handle_twilio_socket(mut socket: WebSocket, state: Arc<AppState>) {
         vad: &mut VadList::Local(LocalVadAdapter::new(1024)),
         stt: stt.clone(),
         pool_manager: state.pool_manager.clone(),
+        history: &mut History::new(),
         audio_buffer: &mut AudioBuffer::new(),
         send_audio: SendAudioCallback::new({
             let audio_source = audio_source.clone();
             move |bytes| audio_source.send_audio(bytes)
         }),
     };
+
+    // Make HTTP calls to initialize conversation
+    // - History : compute prompt-system + prompt user
+    // - Audio : Send first sentence + add into history
 
     info!("Nouvelle connexion locale id={}", audio_source_layer.id);
 
@@ -72,4 +77,13 @@ async fn handle_twilio_socket(mut socket: WebSocket, state: Arc<AppState>) {
         "Connexion id={} fermée. Nettoyage des ressources.",
         audio_source_layer.id
     );
+
+    println!(
+        "History events {}",
+        audio_source_layer.history.history.len()
+    );
+
+    for entry in audio_source_layer.history.history.iter() {
+        info!("-> {}: {:?}", entry.member, entry.content);
+    }
 }

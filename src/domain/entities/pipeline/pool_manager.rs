@@ -24,7 +24,7 @@ use crate::{
 
 #[derive(Clone)]
 pub struct PoolManager {
-    pipelines: Arc<Mutex<HashMap<Uuid, Pipeline>>>,
+    pub pipelines: Arc<Mutex<HashMap<Uuid, Pipeline>>>,
     semaphore: Arc<Semaphore>,
     gen_counter: Arc<AtomicU64>,
 }
@@ -35,15 +35,6 @@ impl PoolManager {
             pipelines: Arc::new(Mutex::new(HashMap::new())),
             semaphore: Arc::new(Semaphore::new(max_concurrent)),
             gen_counter: Arc::new(AtomicU64::new(0)),
-        }
-    }
-
-    pub async fn get_pipeline(&self, id: &Uuid) -> Option<Pipeline> {
-        let map = self.pipelines.lock().await;
-        if let Some(pipeline) = map.get(id) {
-            Some(pipeline.clone())
-        } else {
-            None
         }
     }
 
@@ -74,7 +65,7 @@ impl PoolManager {
             cancellation_token.clone(),
             send_audio.clone(),
         );
-        let pipeline_clone = pipeline.clone();
+        let mut pipeline_clone = pipeline.clone();
 
         spawn(async move {
             let permit = semaphore.acquire_owned().await.expect("Semaphore closed");

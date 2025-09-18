@@ -1,12 +1,17 @@
 use anywho::Error;
+use chrono::Utc;
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
 use crate::{
     application::stt::SttList,
     domain::{
-        entities::audio_source_layer::SendAudioCallback,
+        entities::{
+            audio_source_layer::SendAudioCallback,
+            history::{history_event::HistoryEventPayload, history_member::HistoryMember},
+        },
         ports::stt::{Stt, SttPayload},
+        utils::Reactive,
     },
 };
 
@@ -17,8 +22,8 @@ pub struct Pipeline {
     pub stt: SttList,
     pub cancellation_token: CancellationToken,
     pub send_audio: SendAudioCallback,
-    status_tx: Sender<PipelineStatus>,
-    status_rx: Receiver<PipelineStatus>,
+    pub status: Reactive<PipelineStatus>,
+    pub transcripted: Arc<Mutex<Vec<HistoryEventPayload>>>,
 }
 
 impl Pipeline {
@@ -29,25 +34,28 @@ impl Pipeline {
         cancellation_token: CancellationToken,
         send_audio: SendAudioCallback,
     ) -> Self {
-        let (status_tx, status_rx) = channel(PipelineStatus::Pending);
-
         Pipeline {
             id,
             generation,
             stt,
             cancellation_token,
             send_audio,
-            status_tx,
-            status_rx,
+            status: Reactive::new(PipelineStatus::Pending),
+            transcripted: Arc::new(Mutex::new(Vec::new())),
         }
     }
 
-    pub fn set_status(&self, status: PipelineStatus) {
-        let _ = self.status_tx.send(status);
-    }
+    pub async fn execute_stt(&mut self, bytes: &Vec<i16>) -> Result<SttPayload, Error> {
+        let result = self.stt.execute(bytes).await?;
 
-    pub async fn execute_stt(&self, bytes: &Vec<i16>) -> Result<SttPayload, Error> {
-        self.stt.execute(bytes).await
+        let mut transcripted = self.transcripted.lock().await;
+        transcripted.push(HistoryEventPayload {
+            member: HistoryMember::User,
+            content: result.text.clone(),
+            created_at: Utc::now(),
+        });
+
+        Ok(result)
     }
 
     pub async fn execute_llm(&self) -> Result<(), Error> {
@@ -58,18 +66,14 @@ impl Pipeline {
         call_future().await.map(|_| ())
     }
 
-    pub async fn execute_send_audio(&self, bytes: &Vec<i16>) -> Result<(), Error> {
-        let mut rx = self.status_rx.clone();
-
+    pub async fn execute_send_audio(&mut self, bytes: &Vec<i16>) -> Result<(), Error> {
         let result = timeout(Duration::from_secs(5), async {
             loop {
-                if *rx.borrow() == PipelineStatus::CanSendAudio {
+                if self.status.get() == PipelineStatus::CanSendAudio {
                     return self.send_audio.call(&bytes).await;
                 }
 
-                rx.changed()
-                    .await
-                    .map_err(|_| Error::msg("status channel closed"))?;
+                self.status.changed().await?
             }
         })
         .await;
@@ -81,9 +85,9 @@ impl Pipeline {
     }
 }
 
-use std::time::Duration;
+use std::{sync::Arc, time::Duration};
 use tokio::{
-    sync::watch::{Receiver, Sender, channel},
+    sync::Mutex,
     time::{sleep, timeout},
 };
 
