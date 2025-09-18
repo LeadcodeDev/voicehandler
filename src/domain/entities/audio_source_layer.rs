@@ -1,8 +1,7 @@
 use std::{pin::Pin, sync::Arc};
 
 use anywho::Error;
-use chrono::Duration;
-use tracing::debug;
+use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
 use crate::{
@@ -12,8 +11,10 @@ use crate::{
             audio_buffer::AudioBuffer,
             pipeline::{pipeline::PipelineStatus, pool_manager::PoolManager},
         },
-        ports::vad::{Vad, VadEvent},
-        utils::Convert,
+        ports::{
+            stt::Stt,
+            vad::{Vad, VadEvent},
+        },
     },
 };
 
@@ -30,31 +31,42 @@ impl AudioSourceLayer<'_> {
     pub async fn process(&mut self, pcm: &Vec<i16>) {
         self.audio_buffer.user.extend_from_slice(&pcm);
 
-        loop {
-            match self.vad.process_audio(self.audio_buffer) {
-                VadEvent::SpeechStarted => {
-                    // TODO handle user interuption
+        match self.vad.process_audio(self.audio_buffer) {
+            VadEvent::SpeechStarted => {
+                // TODO handle user interuption
+                println!("Event {:?}", VadEvent::SpeechStarted);
+            }
+            VadEvent::SpeechPaused(start, end) => {
+                println!("Event {:?}", VadEvent::SpeechPaused(start, end));
+                let _ = self
+                    .stt
+                    .write_audio_file(
+                        format!("{}-{}.wav", self.id, Utc::now().to_string()),
+                        &self.audio_buffer.user[start as usize..end as usize].to_vec(),
+                    )
+                    .await;
+                self.pool_manager
+                    .start_pipeline(
+                        self.id,
+                        self.stt.clone(),
+                        self.audio_buffer.user[start as usize..end as usize].to_vec(),
+                        self.send_audio.clone(),
+                    )
+                    .await;
+            }
+            VadEvent::SpeechResumed => {
+                println!("Event {:?}", VadEvent::SpeechResumed);
+                self.pool_manager.stop_pipeline(&self.id).await;
+            }
+            VadEvent::SpeechFullStop => {
+                println!("Event {:?}", VadEvent::SpeechFullStop);
+                let pipeline = self.pool_manager.get_pipeline(&self.id).await;
+                if let Some(pipeline) = pipeline {
+                    let _ = pipeline.set_status(PipelineStatus::CanSendAudio);
                 }
-                VadEvent::SpeechPaused(start, end) => {
-                    self.pool_manager
-                        .start_pipeline(
-                            self.id,
-                            self.stt.clone(),
-                            self.audio_buffer.user[start as usize..end as usize].to_vec(),
-                            self.send_audio.clone(),
-                        )
-                        .await;
-                }
-                VadEvent::SpeechResumed => {
-                    self.pool_manager.stop_pipeline(&self.id).await;
-                }
-                VadEvent::SpeechFullStop => {
-                    let pipeline = self.pool_manager.get_pipeline(&self.id).await;
-                    if let Some(pipeline) = pipeline {
-                        let _ = pipeline.set_status(PipelineStatus::CanSendAudio);
-                    }
-                }
-                VadEvent::WaitingMoreChunks => {}
+            }
+            VadEvent::WaitingMoreChunks => {
+                println!("Event {:?}", VadEvent::WaitingMoreChunks);
             }
         }
     }
