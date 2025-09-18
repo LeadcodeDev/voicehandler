@@ -1,7 +1,7 @@
 use crate::domain::{
     entities::audio_buffer::AudioBuffer,
     ports::vad::{Vad, VadEvent},
-    utils::Utils,
+    utils::{Utils, convert::Convert},
 };
 use std::cmp::max;
 
@@ -17,17 +17,16 @@ impl LocalVadAdapter {
     pub fn new(frame_size: u64) -> Self {
         Self {
             frame_size,
-            // TODO: use voice-handler data
             threshold: 800.0,
-            full_stop_bytes: 32_000,
-            min_speech_bytes: 16_000,
+            full_stop_bytes: Convert::ms_to_int16(2000),
+            min_speech_bytes: Convert::ms_to_int16(200),
         }
     }
 }
 
 impl Vad for LocalVadAdapter {
     fn process_audio<'a>(&mut self, audio_buffer: &'a mut AudioBuffer) -> VadEvent {
-        while audio_buffer.user.len() >= (audio_buffer.cursor + self.frame_size) as usize {
+        while audio_buffer.user.len() as u64 >= (audio_buffer.cursor + self.frame_size) {
             let range = audio_buffer.cursor..audio_buffer.cursor + self.frame_size;
             audio_buffer.cursor += self.frame_size;
             let frame = &audio_buffer.user[range.start as usize..range.end as usize];
@@ -48,8 +47,9 @@ impl Vad for LocalVadAdapter {
                     audio_buffer.end = None;
                     return VadEvent::SpeechResumed;
                 }
-                (false, None, None) => {} // the user still did not talk this
+                (false, None, None) => {} // the user still did not talk this turn
                 (false, Some(start), None) => {
+                    // the user paused a pipeline shall start
                     if audio_buffer.cursor - start >= self.min_speech_bytes {
                         let end = audio_buffer.cursor;
                         audio_buffer.end = Some(end);
@@ -58,6 +58,7 @@ impl Vad for LocalVadAdapter {
                     }
                 }
                 (false, Some(_), Some(end)) => {
+                    // the user is still pausing it may be a full stop
                     if (audio_buffer.cursor - end) > self.full_stop_bytes {
                         audio_buffer.start = None;
                         audio_buffer.end = None;

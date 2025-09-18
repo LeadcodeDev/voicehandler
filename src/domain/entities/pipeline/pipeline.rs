@@ -11,7 +11,7 @@ use crate::{
             history::{history_event::HistoryEventPayload, history_member::HistoryMember},
         },
         ports::stt::{Stt, SttPayload},
-        utils::Reactive,
+        utils::reactive::Reactive,
     },
 };
 

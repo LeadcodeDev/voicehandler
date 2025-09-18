@@ -4,8 +4,11 @@ use anywho::Error;
 use base64::{Engine, engine::general_purpose};
 use chrono::{Duration, Utc};
 use hound::{WavSpec, WavWriter};
-use tokio::sync::watch::{Receiver, Sender, channel};
 use uuid::{NoContext, Timestamp, Uuid};
+
+pub mod audio;
+pub mod convert;
+pub mod reactive;
 
 pub struct Convert;
 
@@ -109,36 +112,5 @@ impl Utils {
         }
         let sum_sq: f64 = samples.iter().map(|&s| (s as f64).powi(2)).sum();
         (sum_sq / samples.len() as f64).sqrt() as f32
-    }
-}
-
-#[derive(Clone)]
-pub struct Reactive<T>
-where
-    T: Clone + Send + Sync + 'static,
-{
-    tx: Sender<T>,
-    rx: Receiver<T>,
-}
-
-impl<T> Reactive<T>
-where
-    T: Clone + Send + Sync,
-{
-    pub fn new(value: T) -> Self {
-        let (tx, rx) = channel(value);
-        Self { tx, rx }
-    }
-
-    pub async fn set(&self, value: T) -> Result<(), Error> {
-        self.tx.send(value).map_err(|err| Error::from(err))
-    }
-
-    pub fn get(&self) -> T {
-        self.rx.borrow().clone()
-    }
-
-    pub async fn changed(&mut self) -> Result<(), Error> {
-        self.rx.changed().await.map_err(|err| Error::from(err))
     }
 }

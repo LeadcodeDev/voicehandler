@@ -1,7 +1,6 @@
 use std::{pin::Pin, sync::Arc};
 
 use anywho::Error;
-use chrono::Utc;
 use tracing::warn;
 use uuid::Uuid;
 
@@ -13,10 +12,7 @@ use crate::{
             history::history::History,
             pipeline::{pipeline::PipelineStatus, pool_manager::PoolManager},
         },
-        ports::{
-            stt::Stt,
-            vad::{Vad, VadEvent},
-        },
+        ports::vad::{Vad, VadEvent},
     },
 };
 
