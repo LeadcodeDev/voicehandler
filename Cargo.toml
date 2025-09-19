@@ -26,5 +26,5 @@ elevenlabs_stt = "0.0.5"
 uuid = { version = "1.16.0", features = ["serde", "v7"] }
 chrono = "0.4.42"
 anywho = "0.1.2"
-rig = "0.1.0"
 tokio-util = "0.7.16"
+openai-api-rs = "6.0.11"

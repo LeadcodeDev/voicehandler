@@ -5,7 +5,7 @@ use tracing::warn;
 use uuid::Uuid;
 
 use crate::{
-    application::{stt::SttList, vad::VadList},
+    application::{llm::LlmList, stt::SttList, vad::VadList},
     domain::{
         entities::{
             audio_buffer::AudioBuffer,
@@ -20,6 +20,7 @@ pub struct AudioSourceLayer<'a> {
     pub id: Uuid,
     pub vad: &'a mut VadList,
     pub stt: SttList,
+    pub llm: LlmList,
     pub pool_manager: PoolManager,
     pub history: &'a mut History,
     pub audio_buffer: &'a mut AudioBuffer,
@@ -33,6 +34,7 @@ impl AudioSourceLayer<'_> {
         match self.vad.process_audio(self.audio_buffer) {
             VadEvent::SpeechStarted => {
                 // TODO handle user interuption
+                // TODO handle speech start UTC for history
                 println!("Event {:?}", VadEvent::SpeechStarted);
             }
             VadEvent::SpeechPaused(start, end) => {
@@ -49,8 +51,10 @@ impl AudioSourceLayer<'_> {
                     .start_pipeline(
                         self.id,
                         self.stt.clone(),
+                        self.llm.clone(),
                         self.audio_buffer.user[start as usize..end as usize].to_vec(),
                         self.send_audio.clone(),
+                        &self.history,
                     )
                     .await;
             }

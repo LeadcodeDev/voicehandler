@@ -8,7 +8,9 @@ use futures::StreamExt;
 use tracing::info;
 
 use crate::{
-    application::{audio_source::AudioSourceList, http::app_state::AppState, vad::VadList},
+    application::{
+        audio_source::AudioSourceList, http::app_state::AppState, llm::LlmList, vad::VadList,
+    },
     domain::{
         entities::{
             audio_buffer::AudioBuffer,
@@ -38,6 +40,14 @@ async fn handle_twilio_socket(mut socket: WebSocket, state: Arc<AppState>) {
             .expect("No Twilio audio source found")
     };
 
+    let llm = {
+        let llms = state.llms.lock().await;
+        llms.iter()
+            .find(|s| matches!(s, LlmList::Gemini(_)))
+            .cloned()
+            .expect("No local audio source found")
+    };
+
     let stt = {
         let stt = state.stt.lock().await;
         stt.clone()
@@ -47,6 +57,7 @@ async fn handle_twilio_socket(mut socket: WebSocket, state: Arc<AppState>) {
         id: Utils::generate_uuid(),
         vad: &mut VadList::Local(LocalVadAdapter::new(1024)),
         stt: stt.clone(),
+        llm: llm.clone(),
         pool_manager: state.pool_manager.clone(),
         history: &mut History::new(),
         audio_buffer: &mut AudioBuffer::new(),

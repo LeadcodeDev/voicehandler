@@ -17,11 +17,13 @@ use voicehanler_rs::{
                 incoming_twilio_handler::ws_twilio_handler,
             },
         },
+        llm::LlmList,
         stt::SttList,
     },
     domain::entities::pipeline::pool_manager::PoolManager,
     infrastructure::{
         audio_source::{local_source_adapter::LocalAdapter, twilio_source_adapter::TwilioAdapter},
+        llm::gemini_adapter::GeminiAdapter,
         stt::scribe_adapter::ScribeAdapter,
     },
 };
@@ -48,6 +50,14 @@ async fn main() {
             info_span!("http_request", method = ?request.method(), uri)
         });
 
+    let llms = vec![LlmList::Gemini(
+        GeminiAdapter::new(
+            args.llm.aistudio_api_key.clone(),
+            args.llm.aistudio_base_url.clone(),
+        )
+        .unwrap(),
+    )];
+
     let source_audio = vec![
         AudioSourceList::Twilio(TwilioAdapter::new()),
         AudioSourceList::Local(LocalAdapter::new()),
@@ -60,6 +70,7 @@ async fn main() {
             args.elevenlabs.elevenlabs_api_key.clone(),
         )),
         source_audio,
+        llms,
     ));
 
     let app = Router::new()

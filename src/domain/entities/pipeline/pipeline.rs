@@ -4,13 +4,19 @@ use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
 use crate::{
-    application::stt::SttList,
+    application::{llm::LlmList, stt::SttList},
     domain::{
         entities::{
             audio_source_layer::SendAudioCallback,
-            history::{history_event::HistoryEventPayload, history_member::HistoryMember},
+            history::{
+                history_event::{HistoryEvent, HistoryEventPayload},
+                history_member::HistoryMember,
+            },
         },
-        ports::stt::{Stt, SttPayload},
+        ports::{
+            llm::Llm,
+            stt::{Stt, SttPayload},
+        },
         utils::reactive::Reactive,
     },
 };
@@ -20,6 +26,7 @@ pub struct Pipeline {
     pub id: Uuid,
     pub generation: u64,
     pub stt: SttList,
+    pub llm: LlmList,
     pub cancellation_token: CancellationToken,
     pub send_audio: SendAudioCallback,
     pub status: Reactive<PipelineStatus>,
@@ -31,6 +38,7 @@ impl Pipeline {
         id: Uuid,
         generation: u64,
         stt: SttList,
+        llm: LlmList,
         cancellation_token: CancellationToken,
         send_audio: SendAudioCallback,
     ) -> Self {
@@ -38,6 +46,7 @@ impl Pipeline {
             id,
             generation,
             stt,
+            llm,
             cancellation_token,
             send_audio,
             status: Reactive::new(PipelineStatus::Pending),
@@ -58,8 +67,13 @@ impl Pipeline {
         Ok(result)
     }
 
-    pub async fn execute_llm(&self) -> Result<(), Error> {
-        call_future().await.map(|_| ())
+    pub async fn execute_llm(&mut self, history_event: Vec<HistoryEvent>) -> Result<(), Error> {
+        let _llm_result = self
+            .llm
+            .process("gemini-2.0-flash".to_string(), history_event)
+            .await;
+
+        Ok(())
     }
 
     pub async fn execute_tts(&self) -> Result<(), Error> {

@@ -1,7 +1,10 @@
 use clap::Parser;
 
-use crate::application::env::{elevenlabs::ElevenLabsEnv, logger::LoggerEnv};
+use crate::application::env::{
+    aistudio::AiStudioEnv, elevenlabs::ElevenLabsEnv, logger::LoggerEnv,
+};
 
+pub mod aistudio;
 pub mod elevenlabs;
 pub mod logger;
 
@@ -12,4 +15,7 @@ pub struct Args {
 
     #[command(flatten)]
     pub logger: LoggerEnv,
+
+    #[command(flatten)]
+    pub llm: AiStudioEnv,
 }

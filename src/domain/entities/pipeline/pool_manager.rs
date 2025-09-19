@@ -6,6 +6,7 @@ use std::{
     },
 };
 
+use chrono::Utc;
 use tokio::{
     select, spawn,
     sync::{Mutex, Semaphore},
@@ -15,9 +16,17 @@ use tracing::{debug, error};
 use uuid::Uuid;
 
 use crate::{
-    application::stt::SttList,
+    application::{llm::LlmList, stt::SttList},
     domain::{
-        entities::{audio_source_layer::SendAudioCallback, pipeline::pipeline::Pipeline},
+        entities::{
+            audio_source_layer::SendAudioCallback,
+            history::{
+                history::History,
+                history_event::{HistoryEvent, HistoryEventPayload},
+                history_member::HistoryMember,
+            },
+            pipeline::pipeline::Pipeline,
+        },
         ports::stt::Stt,
     },
 };
@@ -42,8 +51,10 @@ impl PoolManager {
         &self,
         id: Uuid,
         stt: SttList,
+        llm: LlmList,
         bytes: Vec<i16>,
         send_audio: SendAudioCallback,
+        history: &History,
     ) {
         let generation = self.gen_counter.fetch_add(1, Ordering::SeqCst) + 1;
         let cancellation_token = CancellationToken::new();
@@ -62,10 +73,13 @@ impl PoolManager {
             id,
             generation,
             stt.clone(),
+            llm.clone(),
             cancellation_token.clone(),
             send_audio.clone(),
         );
+
         let mut pipeline_clone = pipeline.clone();
+        let mut history_events = history.events.clone();
 
         spawn(async move {
             let permit = semaphore.acquire_owned().await.expect("Semaphore closed");
@@ -80,6 +94,13 @@ impl PoolManager {
                     match result {
                         Ok(payload) => {
                             debug!("Pipeline {} STT OK", id);
+                            let event = HistoryEventPayload {
+                                member: HistoryMember::User,
+                                content: payload.text.clone(),
+                                created_at: Utc::now(),
+                            };
+
+                            history_events.push(HistoryEvent::new(event));
                             Ok(payload)
                         }
                         Err(e) => {
@@ -90,10 +111,10 @@ impl PoolManager {
                 }
             };
 
-            let _ = pipeline_clone
-                .stt
-                .write_audio_file(format!("{}.wav", id), &bytes)
-                .await;
+            // let _ = pipeline_clone
+            //     .stt
+            //     .write_audio_file(format!("{}.wav", id), &bytes)
+            //     .await;
 
             let _llm_result = select! {
                 _ = cancellation_token.cancelled() => {
@@ -101,7 +122,7 @@ impl PoolManager {
                     return;
                 }
 
-                llm_res = pipeline_clone.execute_llm() => {
+                llm_res = pipeline_clone.execute_llm(history_events) => {
                     match llm_res {
                         Ok(_) => {
                             debug!("LLM success for pipeline ({})", id);

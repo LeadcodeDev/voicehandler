@@ -8,7 +8,9 @@ use futures::StreamExt;
 use tracing::info;
 
 use crate::{
-    application::{audio_source::AudioSourceList, http::app_state::AppState, vad::VadList},
+    application::{
+        audio_source::AudioSourceList, http::app_state::AppState, llm::LlmList, vad::VadList,
+    },
     domain::{
         entities::{
             audio_buffer::AudioBuffer,
@@ -43,11 +45,20 @@ async fn handle_twilio_socket(mut socket: WebSocket, state: Arc<AppState>) {
         audio_sources.clone()
     };
 
+    let llm = {
+        let llms = state.llms.lock().await;
+        llms.iter()
+            .find(|s| matches!(s, LlmList::Gemini(_)))
+            .cloned()
+            .expect("No local audio source found")
+    };
+
     let _history = History::new();
     let mut audio_source_layer = AudioSourceLayer {
         id: Utils::generate_uuid(),
         vad: &mut VadList::Local(LocalVadAdapter::new(1024)),
         stt: stt.clone(),
+        llm: llm.clone(),
         pool_manager: state.pool_manager.clone(),
         history: &mut History::new(),
         audio_buffer: &mut AudioBuffer::new(),
@@ -78,12 +89,9 @@ async fn handle_twilio_socket(mut socket: WebSocket, state: Arc<AppState>) {
         audio_source_layer.id
     );
 
-    println!(
-        "History events {}",
-        audio_source_layer.history.history.len()
-    );
+    println!("History events {}", audio_source_layer.history.events.len());
 
-    for entry in audio_source_layer.history.history.iter() {
+    for entry in audio_source_layer.history.events.iter() {
         info!("-> {}: {:?}", entry.member, entry.content);
     }
 }

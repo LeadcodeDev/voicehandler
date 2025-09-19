@@ -6,19 +6,17 @@ use crate::domain::entities::history::{
 };
 
 pub struct History {
-    pub history: Vec<HistoryEvent>,
+    pub events: Vec<HistoryEvent>,
 }
 
 impl History {
     pub fn new() -> Self {
-        History {
-            history: Vec::new(),
-        }
+        History { events: Vec::new() }
     }
 
     pub fn add(&mut self, payload: HistoryEventPayload) {
         let event = HistoryEvent::new(payload);
-        self.history.push(event);
+        self.events.push(event);
     }
 
     pub fn create_mark(&self, datetime: DateTime<Utc>) -> Vec<HistoryEvent> {
@@ -43,9 +41,9 @@ impl History {
             created_at: datetime,
         });
 
-        let mut events = Vec::<HistoryEvent>::with_capacity(self.history.len() + 1);
+        let mut events = Vec::<HistoryEvent>::with_capacity(self.events.len() + 1);
         events.push(system_event);
-        events.extend(self.history.iter().cloned());
+        events.extend(self.events.iter().cloned());
 
         events
     }
