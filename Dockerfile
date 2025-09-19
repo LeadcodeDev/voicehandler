@@ -22,8 +22,9 @@ RUN cargo build --release
 # Utilise une image de base Debian légère
 FROM debian:bookworm-slim
 
-# Installe la bibliothèque OpenSSL nécessaire
-RUN apt-get update && apt-get install -y --no-install-recommends libssl3 && rm -rf /var/lib/apt/lists/*
+# Installe la bibliothèque OpenSSL ET les certificats racines
+# C'EST LA LIGNE MODIFIÉE
+RUN apt-get update && apt-get install -y --no-install-recommends libssl3 ca-certificates && rm -rf /var/lib/apt/lists/*
 
 # Copie le binaire compilé depuis l'étage de build
 COPY --from=builder /usr/src/app/target/release/voicehanler-rs /usr/local/bin/voicehanler-rs
