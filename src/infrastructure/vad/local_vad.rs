@@ -14,10 +14,10 @@ pub struct LocalVadAdapter {
 }
 
 impl LocalVadAdapter {
-    pub fn new(frame_size: u64) -> Self {
+    pub fn new() -> Self {
         Self {
-            frame_size,
             threshold: 800.0,
+            frame_size: Convert::ms_to_int16(32),
             full_stop_bytes: Convert::ms_to_int16(2000),
             min_speech_bytes: Convert::ms_to_int16(200),
         }
@@ -54,17 +54,21 @@ impl Vad for LocalVadAdapter {
                         let end = audio_buffer.cursor;
                         audio_buffer.end = Some(end);
 
-                        return VadEvent::SpeechPaused(start, end);
+                        //return VadEvent::SpeechPaused(start, end);
                     }
                 }
-                (false, Some(_), Some(end)) => {
+                (false, Some(start), Some(end)) => {
                     // the user is still pausing it may be a full stop
-                    if (audio_buffer.cursor - end) > self.full_stop_bytes {
+                    if audio_buffer.cursor - end > self.full_stop_bytes {
                         audio_buffer.start = None;
                         audio_buffer.end = None;
 
                         return VadEvent::SpeechFullStop;
                     }
+
+                    if (audio_buffer.cursor - end) >= 2 * self.frame_size {
+                        return VadEvent::SpeechPaused(start, end + 2 * self.frame_size);
+                    } // letting 3 trailling frames after a pause
                 }
                 _ => panic!("End cannot exists without start index"),
             }

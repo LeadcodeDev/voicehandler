@@ -55,7 +55,7 @@ async fn handle_twilio_socket(mut socket: WebSocket, state: Arc<AppState>) {
 
     let mut audio_source_layer = AudioSourceLayer {
         id: Utils::generate_uuid(),
-        vad: &mut VadList::Local(LocalVadAdapter::new(1024)),
+        vad: &mut VadList::Local(LocalVadAdapter::new()),
         stt: stt.clone(),
         llm: llm.clone(),
         pool_manager: state.pool_manager.clone(),
