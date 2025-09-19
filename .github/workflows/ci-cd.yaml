@@ -33,12 +33,15 @@ jobs:
       - name: Extract short SHA
         id: vars
         run: echo "sha=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
-      - name: Login to container registry
+      - name: Login to Scaleway container registry
         uses: docker/login-action@v3
         with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          # URL de la registry Scaleway pour la région Paris
+          registry: rg.fr-par.scw.cloud/natalia-private-registry
+          # Le username pour l'authentification par token est 'nologin'
+          username: ${{ secrets.CI_REGISTRY_USER }}
+          # Le mot de passe est la clé secrète stockée dans les secrets GitHub
+          password: ${{ secrets.CI_REGISTRY_PASSWORD }}
       - name: Setup Buildx
         uses: docker/setup-buildx-action@v3
       - name: Build and push
@@ -46,5 +49,6 @@ jobs:
         with:
           context: .
           push: true
-          tags: ghcr.io/leadcodedev/voicehandler:${{ env.sha }}
+          # Mettez à jour le tag pour correspondre à votre registry Scaleway
+          tags: rg.fr-par.scw.cloud/natalia-private-registry/voicehandler-rs:${{ env.sha }}
           provenance: false

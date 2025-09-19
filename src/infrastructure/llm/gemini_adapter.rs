@@ -61,32 +61,39 @@ impl Llm for GeminiAdapter {
             })
             .collect();
 
-        let mut client = self.client.lock().await;
-        let response = client
-            .chat_completion(ChatCompletionRequest {
-                model,
-                messages,
-                temperature: Some(0.2),
-                top_p: Some(0.8),
-                n: None,
-                response_format: None,
-                stream: Some(true),
-                stop: None,
-                max_tokens: Some(512),
-                presence_penalty: None,
-                frequency_penalty: None,
-                logit_bias: None,
-                user: None,
-                seed: None,
-                tools: Some(Vec::new()),
-                parallel_tool_calls: None,
-                tool_choice: Some(ToolChoiceType::Auto),
-                reasoning: None,
-                transforms: None,
-            })
-            .await;
+        let request = ChatCompletionRequest {
+            model,
+            messages,
+            temperature: Some(0.2),
+            top_p: Some(0.8),
+            n: None,
+            response_format: None,
+            stream: None,
+            stop: None,
+            max_tokens: Some(512),
+            presence_penalty: None,
+            frequency_penalty: None,
+            logit_bias: None,
+            user: None,
+            seed: None,
+            tools: Some(Vec::new()),
+            parallel_tool_calls: None,
+            tool_choice: Some(ToolChoiceType::Auto),
+            reasoning: None,
+            transforms: None,
+        };
 
-        println!("LLM RESPONSE: {:?}", response);
+        let mut client = self.client.lock().await;
+        let response = client.chat_completion(request).await?;
+
+        let mut messages = Vec::<String>::new();
+        for choice in &response.choices {
+            if let Some(content) = &choice.message.content {
+                messages.push(content.clone());
+            }
+        }
+
+        println!("LLM RESPONSE: {:?}", messages);
 
         Ok(LlmProcessResponse {})
     }

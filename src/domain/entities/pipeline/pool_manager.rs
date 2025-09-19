@@ -17,17 +17,14 @@ use uuid::Uuid;
 
 use crate::{
     application::{llm::LlmList, stt::SttList},
-    domain::{
-        entities::{
-            audio_source_layer::SendAudioCallback,
-            history::{
-                history::History,
-                history_event::{HistoryEvent, HistoryEventPayload},
-                history_member::HistoryMember,
-            },
-            pipeline::pipeline::Pipeline,
+    domain::entities::{
+        audio_source_layer::SendAudioCallback,
+        history::{
+            history::History,
+            history_event::{HistoryEvent, HistoryEventPayload},
+            history_member::HistoryMember,
         },
-        ports::stt::Stt,
+        pipeline::pipeline::Pipeline,
     },
 };
 
