@@ -26,4 +26,4 @@ FROM debian:bookworm-slim
 COPY --from=builder /usr/src/app/target/release/voicehanler-rs /usr/local/bin/voicehanler-rs
 
 # Définit la commande à exécuter au démarrage du conteneur
-CMD ["voicehandler-rs"]
+CMD ["voicehanler-rs"]
